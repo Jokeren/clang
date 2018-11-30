@@ -41,6 +41,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "clang-offload-bundler";
   case OffloadUnbundlingJobClass:
     return "clang-offload-unbundler";
+  case PartialLinkerJobClass:
+    return "partial-linker";
   }
 
   llvm_unreachable("invalid class");
@@ -402,3 +404,8 @@ void OffloadUnbundlingJobAction::anchor() {}
 
 OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(Action *Input)
     : JobAction(OffloadUnbundlingJobClass, Input, Input->getType()) {}
+
+void PartialLinkerJobAction::anchor() {}
+
+PartialLinkerJobAction::PartialLinkerJobAction(ActionList &Inputs)
+    : JobAction(PartialLinkerJobClass, Inputs, Inputs.front()->getType()) {}

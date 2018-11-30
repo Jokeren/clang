@@ -1112,6 +1112,14 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   if (JA.isOffloading(Action::OFK_Cuda))
     getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
 
+  // If we are offloading to a target via OpenMP and this target happens
+  // to be an NVIDIA GPU then we need to include the CUDA runtime wrapper
+  // to ensure the correct math functions are called in the offloaded
+  // code.
+  if (JA.isDeviceOffloading(Action::OFK_OpenMP) &&
+      getToolChain().getTriple().isNVPTX())
+    getToolChain().AddMathDeviceFunctions(Args, CmdArgs);
+
   // Add -i* options, and automatically translate to
   // -include-pch/-include-pth for transparent PCH support. It's
   // wonky, but we include looking for .gch so we can support seamless
@@ -5108,6 +5116,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fopenmp-host-ir-file-path");
       CmdArgs.push_back(Args.MakeArgString(OpenMPDeviceInput->getFilename()));
     }
+    // // Prevent usage of math.h builtins for device
+    // // toolchain.
+    // CmdArgs.push_back("-fno-math-builtin");
+    CmdArgs.push_back("-fno-builtin-log");
+    CmdArgs.push_back("-fno-builtin-exp");
+    CmdArgs.push_back("-fno-builtin-pow");
   }
 
   // For all the host OpenMP offloading compile jobs we need to pass the targets
@@ -5942,6 +5956,49 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
 
   const char *Exec = getToolChain().getDriver().getClangProgramPath();
   C.addCommand(llvm::make_unique<Command>(JA, *this, Exec, CmdArgs, Inputs));
+}
+
+// Begin partial linking
+
+void PartialLinker::ConstructJob(Compilation &C, const JobAction &JA,
+                                 const InputInfo &Output,
+                                 const InputInfoList &Inputs,
+                                 const llvm::opt::ArgList &TCArgs,
+                                 const char *LinkingOutput) const {
+  // The version with only one output is expected to refer to a bundling job.
+  assert(isa<PartialLinkerJobAction>(JA) && "Expecting partial linking job!");
+
+  // The partial linking command line (using ld as example):
+  // ld -r input1.o input2.o -o single-file.o
+  ArgStringList CmdArgs;
+
+  // Ensure conditions are met for doing partial linking instead of bundling.
+  assert(TCArgs.hasArg(options::OPT_c) &&
+      "Can only use partial linking for object file generation.");
+  assert(C.canSkipOffloadBundler() &&
+      "Offload bundler cannot be skipped.");
+
+  // TODO: the assert may be removed once a more elaborate checking is in
+  // place in the Driver.
+  StringRef LinkerName = getToolChain().GetLinkerPath();
+  assert(LinkerName.endswith("/ld") && "Partial linking not supported.");
+
+  // Enable partial linking.
+  CmdArgs.push_back(TCArgs.MakeArgString("-r"));
+
+  // Add input files.
+  for (unsigned I = 0; I < Inputs.size(); ++I) {
+    CmdArgs.push_back(TCArgs.MakeArgString(Inputs[I].getFilename()));
+  }
+
+  // Add output file.
+  CmdArgs.push_back(TCArgs.MakeArgString("-o"));
+  CmdArgs.push_back(TCArgs.MakeArgString(Output.getFilename()));
+
+  // Add partial linker command.
+  C.addCommand(llvm::make_unique<Command>(
+      JA, *this, TCArgs.MakeArgString(getToolChain().GetLinkerPath()),
+      CmdArgs, None));
 }
 
 // Begin OffloadBundler

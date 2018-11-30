@@ -231,6 +231,10 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
     }();
     Builder.defineMacro("__CUDA_ARCH__", CUDAArchCode);
   }
+
+  // // Prevent any host specific assembly instructions from
+  // // getting inlined on the device.
+  // Builder.defineMacro("__NO_MATH_INLINES");
 }
 
 ArrayRef<Builtin::Info> NVPTXTargetInfo::getTargetBuiltins() const {

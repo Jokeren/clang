@@ -286,6 +286,12 @@ Tool *ToolChain::getOffloadBundler() const {
   return OffloadBundler.get();
 }
 
+Tool *ToolChain::getPartialLinker() const {
+  if (!PartialLinker)
+    PartialLinker.reset(new tools::PartialLinker(*this));
+  return PartialLinker.get();
+}
+
 Tool *ToolChain::getTool(Action::ActionClass AC) const {
   switch (AC) {
   case Action::AssembleJobClass:
@@ -315,6 +321,10 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
   case Action::OffloadBundlingJobClass:
   case Action::OffloadUnbundlingJobClass:
     return getOffloadBundler();
+
+  case Action::PartialLinkerJobClass:
+    return getPartialLinker();
+
   }
 
   llvm_unreachable("Invalid tool kind.");

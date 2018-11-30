@@ -24,7 +24,13 @@
 #ifndef __CLANG_CUDA_DEVICE_FUNCTIONS_H__
 #define __CLANG_CUDA_DEVICE_FUNCTIONS_H__
 
-#if CUDA_VERSION < 9000
+#if defined(_OPENMP)
+#include <__clang_cuda_libdevice_declares.h>
+#include <stddef.h>
+#include <limits.h>
+#endif
+
+#if defined(__CUDA__) && CUDA_VERSION < 9000
 #error This file is intended to be used with CUDA-9+ only.
 #endif
 
@@ -32,7 +38,11 @@
 // we implement in this file. We need static in order to avoid emitting unused
 // functions and __forceinline__ helps inlining these wrappers at -O1.
 #pragma push_macro("__DEVICE__")
+#if defined(__CUDA__)
 #define __DEVICE__ static __device__ __forceinline__
+#elif defined(_OPENMP)
+#define __DEVICE__ static __attribute__((always_inline))
+#endif
 
 // libdevice provides fast low precision and slow full-recision implementations
 // for some functions. Which one gets selected depends on
@@ -53,7 +63,9 @@ __DEVICE__ unsigned long long __brevll(unsigned long long __a) {
   return __nv_brevll(__a);
 }
 __DEVICE__ void __brkpt() { asm volatile("brkpt;"); }
+#if defined(__cplusplus)
 __DEVICE__ void __brkpt(int __a) { __brkpt(); }
+#endif
 __DEVICE__ unsigned int __byte_perm(unsigned int __a, unsigned int __b,
                                     unsigned int __c) {
   return __nv_byte_perm(__a, __b, __c);
@@ -519,7 +531,9 @@ __DEVICE__ unsigned int __sad(int __a, int __b, unsigned int __c) {
 }
 __DEVICE__ float __saturatef(float __a) { return __nv_saturatef(__a); }
 __DEVICE__ int __signbitd(double __a) { return __nv_signbitd(__a); }
+#if defined(__CUDA__)
 __DEVICE__ int __signbitf(float __a) { return __nv_signbitf(__a); }
+#endif
 __DEVICE__ void __sincosf(float __a, float *__sptr, float *__cptr) {
   return __nv_fast_sincosf(__a, __sptr, __cptr);
 }
@@ -1487,7 +1501,9 @@ __DEVICE__ double cbrt(double __a) { return __nv_cbrt(__a); }
 __DEVICE__ float cbrtf(float __a) { return __nv_cbrtf(__a); }
 __DEVICE__ double ceil(double __a) { return __nv_ceil(__a); }
 __DEVICE__ float ceilf(float __a) { return __nv_ceilf(__a); }
+#if defined(__CUDA__)
 __DEVICE__ int clock() { return __nvvm_read_ptx_sreg_clock(); }
+#endif
 __DEVICE__ long long clock64() { return __nvvm_read_ptx_sreg_clock64(); }
 __DEVICE__ double copysign(double __a, double __b) {
   return __nv_copysign(__a, __b);
@@ -1527,8 +1543,10 @@ __DEVICE__ double expm1(double __a) { return __nv_expm1(__a); }
 __DEVICE__ float expm1f(float __a) { return __nv_expm1f(__a); }
 __DEVICE__ double fabs(double __a) { return __nv_fabs(__a); }
 __DEVICE__ float fabsf(float __a) { return __nv_fabsf(__a); }
+#if defined(__CUDA__)
 __DEVICE__ double fdim(double __a, double __b) { return __nv_fdim(__a, __b); }
 __DEVICE__ float fdimf(float __a, float __b) { return __nv_fdimf(__a, __b); }
+#endif
 __DEVICE__ double fdivide(double __a, double __b) { return __a / __b; }
 __DEVICE__ float fdividef(float __a, float __b) {
 #if __FAST_MATH__ && !__CUDA_PREC_DIV
@@ -1564,14 +1582,16 @@ __DEVICE__ float j1f(float __a) { return __nv_j1f(__a); }
 __DEVICE__ double jn(int __n, double __a) { return __nv_jn(__n, __a); }
 __DEVICE__ float jnf(int __n, float __a) { return __nv_jnf(__n, __a); }
 #if defined(__LP64__)
-__DEVICE__ long labs(long __a) { return llabs(__a); };
+__DEVICE__ long labs(long __a) { return __nv_llabs(__a); };
 #else
 __DEVICE__ long labs(long __a) { return __nv_abs(__a); };
 #endif
 __DEVICE__ double ldexp(double __a, int __b) { return __nv_ldexp(__a, __b); }
 __DEVICE__ float ldexpf(float __a, int __b) { return __nv_ldexpf(__a, __b); }
+#ifndef __CLANG_CUDA_APPROX_TRANSCENDENTALS__
 __DEVICE__ double lgamma(double __a) { return __nv_lgamma(__a); }
 __DEVICE__ float lgammaf(float __a) { return __nv_lgammaf(__a); }
+#endif
 __DEVICE__ long long llabs(long long __a) { return __nv_llabs(__a); }
 __DEVICE__ long long llmax(long long __a, long long __b) {
   return __nv_llmax(__a, __b);
@@ -1698,6 +1718,7 @@ __DEVICE__ double rsqrt(double __a) { return __nv_rsqrt(__a); }
 __DEVICE__ float rsqrtf(float __a) { return __nv_rsqrtf(__a); }
 __DEVICE__ double scalbn(double __a, int __b) { return __nv_scalbn(__a, __b); }
 __DEVICE__ float scalbnf(float __a, int __b) { return __nv_scalbnf(__a, __b); }
+#if defined(__CUDA__)
 __DEVICE__ double scalbln(double __a, long __b) {
   if (__b > INT_MAX)
     return __a > 0 ? HUGE_VAL : -HUGE_VAL;
@@ -1712,6 +1733,7 @@ __DEVICE__ float scalblnf(float __a, long __b) {
     return __a > 0 ? 0.f : -0.f;
   return scalbnf(__a, (int)__b);
 }
+#endif
 __DEVICE__ double sin(double __a) { return __nv_sin(__a); }
 __DEVICE__ void sincos(double __a, double *__sptr, double *__cptr) {
   return __nv_sincos(__a, __sptr, __cptr);
@@ -1738,8 +1760,10 @@ __DEVICE__ double tan(double __a) { return __nv_tan(__a); }
 __DEVICE__ float tanf(float __a) { return __nv_tanf(__a); }
 __DEVICE__ double tanh(double __a) { return __nv_tanh(__a); }
 __DEVICE__ float tanhf(float __a) { return __nv_tanhf(__a); }
+#ifndef __CLANG_CUDA_APPROX_TRANSCENDENTALS__
 __DEVICE__ double tgamma(double __a) { return __nv_tgamma(__a); }
 __DEVICE__ float tgammaf(float __a) { return __nv_tgammaf(__a); }
+#endif
 __DEVICE__ double trunc(double __a) { return __nv_trunc(__a); }
 __DEVICE__ float truncf(float __a) { return __nv_truncf(__a); }
 __DEVICE__ unsigned long long ullmax(unsigned long long __a,
