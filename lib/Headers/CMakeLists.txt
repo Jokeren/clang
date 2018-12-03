@@ -156,7 +156,9 @@ add_custom_command(OUTPUT ${output_dir}/arm_fp16.h
 list(APPEND out_files ${output_dir}/arm_fp16.h)
 
 add_custom_target(clang-headers ALL DEPENDS ${out_files})
-set_target_properties(clang-headers PROPERTIES FOLDER "Misc")
+set_target_properties(clang-headers PROPERTIES
+  FOLDER "Misc"
+  RUNTIME_OUTPUT_DIRECTORY "${output_dir}")
 
 install(
   FILES ${files} ${CMAKE_CURRENT_BINARY_DIR}/arm_neon.h
