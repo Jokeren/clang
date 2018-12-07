@@ -1817,7 +1817,9 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(FunctionDecl *D,
   // If the original function was part of a friend declaration,
   // inherit its namespace state and add it to the owner.
   if (isFriend) {
-    PrincipalDecl->setObjectOfFriendDecl();
+    Function->setObjectOfFriendDecl();
+    if (FunctionTemplateDecl *FT = Function->getDescribedFunctionTemplate())
+      FT->setObjectOfFriendDecl();
     DC->makeDeclVisibleInContext(PrincipalDecl);
 
     bool QueuedInstantiation = false;
@@ -2702,26 +2704,28 @@ Decl *TemplateDeclInstantiator::VisitUsingPackDecl(UsingPackDecl *D) {
 }
 
 Decl *TemplateDeclInstantiator::VisitClassScopeFunctionSpecializationDecl(
-                                     ClassScopeFunctionSpecializationDecl *Decl) {
+    ClassScopeFunctionSpecializationDecl *Decl) {
   CXXMethodDecl *OldFD = Decl->getSpecialization();
   CXXMethodDecl *NewFD =
     cast_or_null<CXXMethodDecl>(VisitCXXMethodDecl(OldFD, nullptr, true));
   if (!NewFD)
     return nullptr;
 
-  LookupResult Previous(SemaRef, NewFD->getNameInfo(), Sema::LookupOrdinaryName,
-                        Sema::ForExternalRedeclaration);
-
-  TemplateArgumentListInfo TemplateArgs;
-  TemplateArgumentListInfo *TemplateArgsPtr = nullptr;
+  TemplateArgumentListInfo ExplicitTemplateArgs;
+  TemplateArgumentListInfo *ExplicitTemplateArgsPtr = nullptr;
   if (Decl->hasExplicitTemplateArgs()) {
-    TemplateArgs = Decl->templateArgs();
-    TemplateArgsPtr = &TemplateArgs;
+    if (SemaRef.Subst(Decl->templateArgs().getArgumentArray(),
+                      Decl->templateArgs().size(), ExplicitTemplateArgs,
+                      TemplateArgs))
+      return nullptr;
+    ExplicitTemplateArgsPtr = &ExplicitTemplateArgs;
   }
 
+  LookupResult Previous(SemaRef, NewFD->getNameInfo(), Sema::LookupOrdinaryName,
+                        Sema::ForExternalRedeclaration);
   SemaRef.LookupQualifiedName(Previous, SemaRef.CurContext);
-  if (SemaRef.CheckFunctionTemplateSpecialization(NewFD, TemplateArgsPtr,
-                                                  Previous)) {
+  if (SemaRef.CheckFunctionTemplateSpecialization(
+          NewFD, ExplicitTemplateArgsPtr, Previous)) {
     NewFD->setInvalidDecl();
     return NewFD;
   }
